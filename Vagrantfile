@@ -10,16 +10,16 @@ DEFAULT_BASE_BOX = 'bertvv/centos72'
 VAGRANTFILE_API_VERSION = '2'
 PROJECT_NAME = '/' + File.basename(Dir.getwd)
 
+# When set to `true`, Ansible will be forced to be run locally on the VM
+# instead of from the host machine (provided Ansible is installed).
+FORCE_LOCAL_RUN = false
+
 hosts = YAML.load_file('vagrant-hosts.yml')
 
 # {{{ Helper functions
 
-def windows?
-  RbConfig::CONFIG['host_os'] =~ /mswin|mingw|cygwin/
-end
-
 def provision_ansible(config)
-  if windows?
+  if run_locally?
     # Provisioning configuration for shell script.
     config.vm.provision 'shell' do |sh|
       sh.path = 'scripts/playbook-win.sh'
@@ -31,6 +31,14 @@ def provision_ansible(config)
       ansible.sudo = true
     end
   end
+end
+
+def run_locally?
+  windows_host? || FORCE_LOCAL_RUN
+end
+
+def windows_host?
+  RbConfig::CONFIG['host_os'] =~ /mswin|mingw|cygwin/
 end
 
 # Set options for the network interface configuration. All values are
@@ -80,9 +88,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       custom_synced_folders(node.vm, host)
 
       node.vm.provider :virtualbox do |vb|
-        # Remove this to keep default VM name
-        vb.name = host['name']
-        # If assigning VMs to a group fails, remove the following line
+        # WARNING: if the name of the current directory is the same as the
+        # host name, this will fail.
         vb.customize ['modifyvm', :id, '--groups', PROJECT_NAME]
       end
     end
